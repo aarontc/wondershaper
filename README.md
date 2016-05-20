@@ -1,32 +1,34 @@
-The Wonder Shaper 1.3
-==============
+# Wonder Shaper 1.3.1
 
-Copyright
--------------
+## About
 
-bert hubert <ahu@ds9a.nl> http://lartc.org/wondershaper (c) Copyright 2002
-magnific0 http://www.github.com/magnific0 (c) Copyright 2012
-Simon Séhier <simon@sehier.fr> - Camptocamp (c) Copyright 2015 - HTB
-Licenced under the GPL
+Wonder Shaper is an old script that allows users to limit/shape the bandwidth of one or more network adapters.
 
-About
---------------
+It does so by using iproute's tc command, but greatly simplifies its operation.
 
-Wonder Shaper is a script that allow the user to limit the bandwidth of one or more network adapters. It does so by using iproute's tc command, but greatly simplifies its operation. Wonder Shaper was first released by Bert Hubert in 2002, but the original version lacked a command-line interface, from on version 1.2 this feature was added. From version 1.3, the HTB queing is used instead of CBQ, allowing better bandwith managment on high speed (above ten megabits) links. The original README is a rather lengthy document and is saved under README.old, for those who'd like some more background information. Except any notes on operation this document is considered up-to-date.
+The original version was first released by bert hubert in 2002.  See AUTHORS for all the credits.
 
-Installation
---------------
+From version 1.2, the supposedly missing command-line interface was added.
 
-You can run wondershaper (as any user with sufficient permissions) without
-installation. However if you want to install the script onto your system you can
-simply run:
+From version 1.3, the HTB queing was used instead of CBQ, allowing better bandwith managment on high speed (above ten megabits) links.
 
-        sudo make install
+The original README is a rather lengthy document and saved under README-1.1a.txt, for those who'd like some more background information.
 
-Usage
---------------
+Except any notes on operation in this document is considered up-to-date.  See CHANGELOG for details.
 
-	wondershaper [-hcs] [-a <adapter>] [-d <rate>] [-u <rate>]
+Licensed under the GNU General Public License v2
+
+## Installation
+
+You can run wondershaper (as any user with sufficient permissions) without installation.
+
+However if you want to install the script onto your system you can simply run:
+
+    sudo make install
+
+## Usage
+
+    wondershaper [-hcs] [-a <adapter>] [-du <rate>] [-fg <rate>]
 
 The following command line options are allowed:
 
@@ -34,9 +36,13 @@ The following command line options are allowed:
 
 - `-a <adapter>` Set the adpter
 
-- `-d <rate>` Set maximum download rate (in Kbps)
+- `-d <rate>` Set maximum download rate (in kbps)
 
-- `-u <rate>` Set maximum upload rate (in Kbps)
+- `-u <rate>` Set maximum upload rate (in kbps)
+
+- `-f <rate>` **EXPERIMENTAL** Set maximum download rate (in kBps)
+
+- `-g <rate>` **EXPERIMENTAL** Set maximum upload rate (in kBps)
 
 - `-p` Use the presets in /etc/conf.d/wondershaper.conf
 
@@ -46,16 +52,18 @@ The following command line options are allowed:
 
 The different modes are:
 
-	wondershaper -a <adapter> -d <rate> -u <rate>
+    wondershaper -a <adapter> -d <rate> -u <rate>
 
-	wondershaper -c -a <adapter>
+    wondershaper -a <adapter> -f <rate> -g <rate>
 
-	wondershaper -s -a <adapter>
+    wondershaper -c -a <adapter>
+
+    wondershaper -s -a <adapter>
 
 Some examples:
 
-	wondershaper -a eth0 -d 1024 -u 512
+    wondershaper -a eth0 -d 94000 -u 94000 # can be used on a 100Mbps link
 
-	wondershaper -a eth1 -d 94000 -u 94000  # could be used on a 100Mbps link
+    wondershaper -c -a eth0
 
-	wondershaper -c -a eth0
+    wondershaper -a wlp3s0f0 -f 130 -g 100 # can accept kBps values

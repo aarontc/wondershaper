@@ -1,216 +1,211 @@
 #!/bin/bash
 # Wonder Shaper
-#
-# Set the following values to somewhat less than your actual download
-# and uplink speed. In kilobits. Also set the device that is to be shaped.
-#
-# Orginal: bert hubert <ahu@ds9a.nl>, Copyright 2002, Licensed under the GPL
-# Fixes: magnific0 (http://www.github.com/magnific0/wondershaper)
-#        systemd .service and .conf file by kfgz and cmsigler at aur.archlinux.org
+# Licensed under the GNU General Public License v2
 
-usage()
-{
+usage() {
 cat << EOF
-USAGE: $0 [-hcs] [-a <adapter>] [-d <rate>] [-u <rate>]
-
-Limit the bandwidth of an adapter
+wondershaper 1.3.1 - CLI bandwidth shaper
+USAGE: $0 [-hcs] [-a <adapter>] [-du <rate>] [-fg <rate>]
 
 OPTIONS:
-   -h           Show this message
-   -a <adapter> Set the adpter
-   -d <rate>    Set maximum download rate (in Kbps)
-   -u <rate>    Set maximum upload rate (in Kbps)
-   -p           Use presets in /etc/conf.d/wondershaper.conf
-   -c           Clear the limits from adapter
-   -s           Show the current status of adapter
+    -h           Show this help
+    -a <adapter> Set the adapter
+    -d <rate>    Set maximum download rate (in kbps)
+    -u <rate>    Set maximum upload rate (in kbps)
+    -f <rate>    EXPERIMENTAL Set maximum download rate (in kBps)
+    -g <rate>    EXPERIMENTAL Set maximum upload rate (in kBps)
+    -p           Use presets in /etc/conf.d/wondershaper.conf
+    -c           Clear the limits from adapter
+    -s           Show the current status of adapter
 
 MODES:
-   wondershaper -a <adapter> -d <rate> -u <rate>
-   wondershaper -c -a <adapter>
-   wondershaper -s -a <adapter>
+    wondershaper -a <adapter> -d <rate> -u <rate>
+    wondershaper -a <adapter> -f <rate> -g <rate>
+    wondershaper -c -a <adapter>
+    wondershaper -s -a <adapter>
 
 EXAMPLES:
-   wondershaper -a eth0 -d 1024 -u 512
-   wondershaper -c -a eth0
-
+    wondershaper -a eth0 -d 1024 -u 512
+    wondershaper -c -a eth0
 EOF
 }
 
+# TODO this is UGLY way of accept kiloBytes function.
+# May interfere with other options.  Will find better ways to do one shot.
+down_kb() {
+    DSPEED=$(( $DSKB * 8 ))
+    echo "Download speed limit is set to ${DSKB}kBps (${DSPEED}kbps)."
+}
+up_kb() {
+    USPEED=$(( $USKB * 8 ))
+    echo "Upload speed limit is set to ${USKB}kBps (${USPEED}kbps)."
+}
+
+# The old script required users to manually set their intended download and
+# upload speed limits in kilobits and also the device that needs to be shaped.
+# This is no longer the case with the addition of CLI since version 1.2.
 DSPEED=
 USPEED=
 IFACE=
 MODE=
 
-while getopts hd:u:a:pcs o
-do	case "$o" in
-	h)	usage
-		exit 1;;
-	d)	DSPEED=$OPTARG;;
-	u)      USPEED=$OPTARG;;
-	a)      IFACE=$OPTARG;;
-	p)      MODE="presets";;
-	c)      MODE="clear";;
-	s)      MODE="status";;
-	[?])	usage
-		exit 1;;
-	esac
+# TODO plan on making the script to parse longer options rather than letters
+while getopts hd:u:a:f:g:pcs o; do case "$o" in
+    h)   usage
+         exit 1;;
+    d)   DSPEED=$OPTARG;;
+    u)   USPEED=$OPTARG;;
+    a)   IFACE=$OPTARG;;
+    f)   DSKB=$OPTARG
+         down_kb;;
+    g)   USKB=$OPTARG
+         up_kb;;
+    p)   MODE='presets';;
+    c)   MODE='clear';;
+    s)   MODE='status';;
+    *)   echo 'Invalid argument.  Please see -h for how to use it.'
+         exit 1;;
+    esac
 done
 
-if [ "$MODE" = "presets" ]
-then
-    if [ -f /etc/conf.d/wondershaper.conf ]
-    then
-	source /etc/conf.d/wondershaper.conf
+# TODO add ability to make/edit/delete conf file
+if [ "$MODE" = 'presets' ]; then
+    if [ -f /etc/conf.d/wondershaper.conf ]; then
+        echo 'Using wondershaper.conf...'
+        source /etc/conf.d/wondershaper.conf
     else
-	echo "/etc/conf.d/wondershaper.conf not found"
-	exit 1
+        echo '/etc/conf.d/wondershaper.conf not found.'
+        exit 1
     fi
 fi
 
-if [[ ! -z $MODE ]] && [[ -z $IFACE ]]
-then
-    echo "Please supply the adapter name for the mode."
-    echo ""
-    usage
+if [ ! -z $MODE ] && [ -z $IFACE ]; then
+    echo 'Please supply the adapter name for the mode after -a.'
     exit 1
 fi
 
-if [ "$MODE" = "status" ]
-then
+if [ "$MODE" = 'status' ]; then
     tc -s qdisc ls dev $IFACE
+    echo
     tc -s class ls dev $IFACE
     exit
 fi
 
-if [ "$MODE" = "clear" ]
-then
-    tc qdisc del dev $IFACE root    2> /dev/null > /dev/null
-    tc qdisc del dev $IFACE ingress 2> /dev/null > /dev/null
+if [ "$MODE" = 'clear' ]; then
+    tc qdisc del dev $IFACE root
+    echo
+    tc qdisc del dev $IFACE ingress
     exit
 fi
 
-if [[ -z $DSPEED ]] || [[ -z $USPEED ]] || [[ -z $IFACE ]]
-then
-    usage
+# TODO make this more smart and fight against whatever invalid argument
+if [ -z $DSPEED ] || [ -z $USPEED ] || [ -z $IFACE ]; then
+    echo 'Missing additional options.  Please see -h for examples.'
     exit 1
 fi
 
-# low priority OUTGOING traffic - you can leave this blank if you want
-# low priority source netmasks
-NOPRIOHOSTSRC=80
+# Low priority OUTGOING traffic
+# Leave this blank if you want low priority source netmasks
+# Original HTB script does not use 80 but blank
+NOPRIOHOSTSRC=
 
-# low priority destination netmasks
+# Low priority destination netmasks
 NOPRIOHOSTDST=
 
-# low priority source ports
+# Low priority source ports
 NOPRIOPORTSRC=
 
-# low priority destination ports
+# Low priority destination ports
 NOPRIOPORTDST=
 
+# TODO add ability to modify uplink and downlink independently
+# TODO maybe planning IPv6 support, ECN etc.
+
+# Install root HTB
+tc qdisc add dev $IFACE root handle 1: htb default 20
 
 
-###### uplink
-
-# install root HTB
-
-tc qdisc add dev $IFACE root handle 1: htb \
-    default 20
-
-# shape everything at $USPEED speed - this prevents huge queues in your
-# DSL modem which destroy latency:
-# main class
-
+# UPLINK #
+# Shape everything at $USPEED speed
+# This prevents huge queues in your DSL modem which destroy latency
+# Main class
 tc class add dev $IFACE parent 1: classid 1:1 htb \
     rate ${USPEED}kbit \
     prio 5
 
-# high prio class 1:10:
-
+# High prio class 1:10:
 tc class add dev $IFACE parent 1:1 classid 1:10 htb \
     rate ${USPEED}kbit \
     prio 1
 
-# bulk and default class 1:20 - gets slightly less traffic,
-#  and a lower priority:
-
+# Bulk and default class 1:20 - gets slightly less traffic,
+# and a lower priority:
 tc class add dev $IFACE parent 1:1 classid 1:20 htb \
     rate $[9*$USPEED/20]kbit ceil $[9*$USPEED/10]kbit \
     prio 2
 
-# 'traffic we hate'
-
+# 'Traffic we hate'
 tc class add dev $IFACE parent 1:1 classid 1:30 htb \
     rate $[8*$USPEED/20]kbit ceil $[8*$USPEED/10]kbit \
     prio 2
 
-# all get Stochastic Fairness:
+# All get Stochastic Fairness:
 tc qdisc add dev $IFACE parent 1:10 handle 10: sfq perturb 10
 tc qdisc add dev $IFACE parent 1:20 handle 20: sfq perturb 10
 tc qdisc add dev $IFACE parent 1:30 handle 30: sfq perturb 10
 
-# start filters
+# Start filters
 # TOS Minimum Delay (ssh, NOT scp) in 1:10:
 tc filter add dev $IFACE parent 1:0 protocol ip prio 10 u32 \
-      match ip tos 0x10 0xff  flowid 1:10
+    match ip tos 0x10 0xff flowid 1:10
 
-# ICMP (ip protocol 1) in the interactive class 1:10 so we
-# can do measurements & impress our friends:
+# ICMP (ip protocol 1) in the interactive class 1:10 so we can do measurements &
+# impress our friends:
 tc filter add dev $IFACE parent 1:0 protocol ip prio 11 u32 \
-        match ip protocol 1 0xff flowid 1:10
+    match ip protocol 1 0xff flowid 1:10
 
-# prioritize small packets (<64 bytes)
-
+# Prioritize small packets (<64 bytes)
 tc filter add dev $IFACE parent 1: protocol ip prio 12 u32 \
-   match ip protocol 6 0xff \
-   match u8 0x05 0x0f at 0 \
-   match u16 0x0000 0xffc0 at 2 \
-   flowid 1:10
+    match ip protocol 6 0xff \
+    match u8 0x05 0x0f at 0 \
+    match u16 0x0000 0xffc0 at 2 \
+    flowid 1:10
 
-
-# some traffic however suffers a worse fate
-for a in $NOPRIOPORTDST
-do
-	tc filter add dev $IFACE parent 1: protocol ip prio 14 u32 \
-	   match ip dport $a 0xffff flowid 1:30
+# Some traffic however suffers a worse fate
+for a in $NOPRIOPORTDST; do
+    tc filter add dev $IFACE parent 1: protocol ip prio 14 u32 \
+        match ip dport $a 0xffff flowid 1:30
 done
 
-for a in $NOPRIOPORTSRC
-do
- 	tc filter add dev $IFACE parent 1: protocol ip prio 15 u32 \
-	   match ip sport $a 0xffff flowid 1:30
+for a in $NOPRIOPORTSRC; do
+    tc filter add dev $IFACE parent 1: protocol ip prio 15 u32 \
+        match ip sport $a 0xffff flowid 1:30
 done
 
-for a in $NOPRIOHOSTSRC
-do
- 	tc filter add dev $IFACE parent 1: protocol ip prio 16 u32 \
-	   match ip src $a flowid 1:30
+for a in $NOPRIOHOSTSRC; do
+    tc filter add dev $IFACE parent 1: protocol ip prio 16 u32 \
+        match ip src $a flowid 1:30
 done
 
-for a in $NOPRIOHOSTDST
-do
- 	tc filter add dev $IFACE parent 1: protocol ip prio 17 u32 \
-	   match ip dst $a flowid 1:30
+for a in $NOPRIOHOSTDST; do
+    tc filter add dev $IFACE parent 1: protocol ip prio 17 u32 \
+        match ip dst $a flowid 1:30
 done
 
-# rest is 'non-interactive' ie 'bulk' and ends up in 1:20
-
+# Rest is 'non-interactive' ie 'bulk' and ends up in 1:20
 tc filter add dev $IFACE parent 1: protocol ip prio 18 u32 \
-   match ip dst 0.0.0.0/0 flowid 1:20
+    match ip dst 0.0.0.0/0 flowid 1:20
 
 
-########## downlink #############
-# slow downloads down to somewhat less than the real speed  to prevent
-# queuing at our ISP. Tune to see how high you can set it.
+# DOWNLINK #
+# Slow downloads down to somewhat less than the real speed to prevent queuing at
+# our ISP.  Tune to see how high you can set it.
 # ISPs tend to have *huge* queues to make sure big downloads are fast
-#
-# attach ingress policer:
 
+# Attach ingress policer:
 tc qdisc add dev $IFACE handle ffff: ingress
 
-# filter *everything* to it (0.0.0.0/0), drop everything that's
-# coming in too fast:
-
+# Filter *everything* to it (0.0.0.0/0)
+# Drop everything that's coming in too fast:
 tc filter add dev $IFACE parent ffff: protocol ip prio 50 u32 match ip src \
-   0.0.0.0/0 police rate ${DSPEED}kbit burst 30k drop flowid :1
-
+    0.0.0.0/0 police rate ${DSPEED}kbit burst 30k drop flowid :1
