@@ -4,13 +4,13 @@
 
 Wonder Shaper is an old script that allows users to limit/shape the bandwidth of one or more network adapters.
 
-It does so by using iproute's tc command, but greatly simplifies its operation.
+It does so by using `iproute`'s `tc` command, but greatly simplifies its operation.
 
 The original version was first released by bert hubert in 2002.  See AUTHORS for all the credits.
 
-From version 1.2, the supposedly missing command-line interface was added.
+From version 1.2, the supposedly missing command line interface was added.
 
-From version 1.3, the HTB queing was used instead of CBQ, allowing better bandwith managment on high speed (above ten megabits) links.
+From version 1.3, the HTB queing was used instead of CBQ, allowing better bandwidth managment on high speed (>10 Mb) links.
 
 The original README is a rather lengthy document and saved under README-1.1a.txt, for those who'd like some more background information.
 
@@ -20,7 +20,7 @@ Licensed under the GNU General Public License v2
 
 ## Installation
 
-You can run wondershaper (as any user with sufficient permissions) without installation.
+You can run `wondershaper` (as any user with sufficient permissions) without installation.
 
 However if you want to install the script onto your system you can simply run:
 
